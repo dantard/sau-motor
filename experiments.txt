@@ -1,0 +1,29 @@
+### GENERAL
+
+sudo sshfs -o allow_other,default_permissions danilo@192.168.130.50:work/sau-motor ~/sshfs
+
+### EXP 1 same node flow intereference
+
+--- High speed flow ---
+
+On PC1
+./emitter.py -i 1 -p 0.02 -q 1 -d 10 -s 12345
+
+On PC2
+../emitter.py -i 1 -q 1 -x 0.01-5000-1M-duo_fast_1.csv
+
+
+--- Low Speed flow ---
+
+On PC1
+./emitter.py -i 2 -p 1 -q 10 -d 2000
+
+On PC2
+../emitter.py -i 2 -q 10 -n 5000 -w 1-20-1M-alone
+
+!!! DO NOT forget to execute ./block_dds on any PC
+sudo ../blockdds.sh enp0s25
+sudo ./blockdds.sh enx00e04c68187
+
+!!! Check BW on PC2
+sudo -E ./sniff.py wlp2s0

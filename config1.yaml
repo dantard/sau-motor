@@ -1,0 +1,8 @@
+policy: 1000
+data_size: 500
+frames_count: 2000
+plot: True
+xmax: 111250
+title: one
+
+
