@@ -1,0 +1,11 @@
+type: delay
+discard: 4.3
+cut: 6
+yticks: 0.0041,0.014,0.15
+xlabel: "Time (s)"
+ylabel: "Delay (s)"
+legend: "Message Delay"
+
+
+#-d 4.3 -c 7.5 -P -y0.0041,0.014,0.15
+#plotter.py -f ../0.01-5000-1M-duo_fast_1.csv -t iath -s 6 -x0.0031,0.02,0.157

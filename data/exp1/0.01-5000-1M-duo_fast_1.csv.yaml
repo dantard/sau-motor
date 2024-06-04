@@ -1,0 +1,6 @@
+type: hist
+sigma: 6
+xticks: 0.0031,0.02,0.157
+xlabel: "Inter Arrival Time (s)"
+ylabel: "Ocurrences #"
+legend: "IAT Delay"

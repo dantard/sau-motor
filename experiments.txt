@@ -2,7 +2,7 @@
 
 sudo sshfs -o allow_other,default_permissions danilo@192.168.130.50:work/sau-motor ~/sshfs
 
-### EXP 1 same node flow intereference
+### EXP 1 same node flow intereference (commit 507f902)
 
 --- High speed flow ---
 
@@ -17,6 +17,7 @@ On PC2
 
 On PC1
 ./emitter.py -i 2 -p 1 -q 10 -d 2000
+** could increade to -d 4000 for a more dramatic effect
 
 On PC2
 ../emitter.py -i 2 -q 10 -n 5000 -w 1-20-1M-alone
@@ -27,3 +28,11 @@ sudo ./blockdds.sh enx00e04c68187
 
 !!! Check BW on PC2
 sudo -E ./sniff.py wlp2s0
+
+## RESULTS
+DELAY
+plotter.py -f DW-duo-10-2000-1M.csv -d 4.3 -c 7.5 -P -y0.0041,0.014,0.15
+
+IAT HIST
+plotter.py -f ../0.01-5000-1M-duo_fast_1.csv -t iath -s 6 -x0.0031,0.02,0.157
+
