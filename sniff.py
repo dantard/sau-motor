@@ -23,7 +23,7 @@ def bandwidth(delay):
         for k in total_bytes_on_wire:
             text += f"{k}: {total_bytes_on_wire[k] * 8 / delay / 1024:5.2f}, "
             total_bytes_on_wire[k] = 0
-        print(text, end="\r")
+        # print(text, end="\r")
         time.sleep(delay)
 
 
@@ -49,6 +49,15 @@ def packet_handler(packet):
                 # Decode the raw payload to a string, ignoring errors
 
                 payload_str = raw_payload.decode('utf-8', errors='ignore')
+                # print(payload_str)
+                if "ABCD" in payload_str:
+                    base = payload_str.index("ABCD")
+                    index = payload_str[base + 4:base + 5]
+                    serial = payload_str[base + 5: base + 8]
+                    serial = serial.encode('utf-8', errors='ignore')
+                    serial = int.from_bytes(raw_payload[base + 5:base + 7], byteorder='little')
+                    print(index, serial, ip_layer.frag)
+
                 if "aaaa" in payload_str:
                     if ip_layer.frag == 0:
                         frag_counters[0] = 0
@@ -63,7 +72,7 @@ def packet_handler(packet):
                 elif "bbb" in payload_str:
                     if ip_layer.frag == 0:
                         frag_counters[1] = 0
-                        serial = int.from_bytes(raw_payload[68:73], byteorder='little')
+                        serial = int.from_bytes(raw_payload[68:73], byteorder='big')
                         serials[1] = serial
                     else:
                         frag_counters[1] += 1

@@ -26,29 +26,35 @@ client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
 
 class Emitter(Node):
-    data = [7074063781260840182, 7016996765293437281, 7089336938131513954]
 
     # sudo ip route add 192.168.1.3 via 192.168.1.2
     # sudo ip route del 192.168.1.3 via 192.168.1.2
     def __init__(self, kind, idx=1, period=0.1, qos_profile=1, data_size=0, server_address=None):
         super().__init__('Emitter' + str(idx))
+
         self.kind = kind
+        self.idx = idx
         self.publisher = self.create_publisher(self.kind, 'out' + str(idx), qos_profile)
         self.count = 0
         self.server_address = server_address
-        self.data = [Emitter.data[idx] for _ in range(data_size)]
+        self.data = []  # [num for _ in range(data_size)]
+        self.data_size = data_size
         self.create_timer(period, self.timer_callback)
         self.prev_sent_ts = 0
+        text = "ABCD{:1d}".format(self.idx, self.count)
+        self.num = 0
+        for i, c in enumerate(text):
+            self.num = ord(c) << (i + 3) * 8 | self.num
 
     def timer_callback(self):
+        num = self.num + self.count
+        self.data = [num for _ in range(self.data_size)]
         self.send([self.count] + self.data)
         self.count += 1
 
     def send(self, value):
-        diff = time.time_ns() // 1000 - self.prev_sent_ts
-        if diff > 205000:
-            print("Sent: ", value[0], diff, end="\n")
-        self.prev_sent_ts = time.time_ns() // 1000
+        #        diff = time.time_ns() // 1000 - self.prev_sent_ts
+        #        self.prev_sent_ts = time.time_ns() // 1000
         msg = self.kind()
         if self.server_address is not None:
             message = struct.pack('!iiq', 0, value[0], time.time_ns())
