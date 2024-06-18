@@ -37,19 +37,18 @@ class Emitter(Node):
         self.publisher = self.create_publisher(self.kind, 'out' + str(idx), qos_profile)
         self.count = 0
         self.server_address = server_address
-        self.data = []  # [num for _ in range(data_size)]
         self.data_size = data_size
         self.create_timer(period, self.timer_callback)
         self.prev_sent_ts = 0
-        text = "ABCD{:1d}".format(self.idx, self.count)
-        self.num = 0
-        for i, c in enumerate(text):
-            self.num = ord(c) << (i + 3) * 8 | self.num
 
     def timer_callback(self):
-        num = self.num + self.count
-        self.data = [num for _ in range(self.data_size)]
-        self.send([self.count] + self.data)
+        text = "PY{:1d}{:05d}".format(self.idx, self.count)
+        num = 0
+        for i, c in enumerate(text):
+            num = ord(c) << i * 8 | num
+
+        data = [num for _ in range(self.data_size)]
+        self.send([self.count] + data)
         self.count += 1
 
     def send(self, value):
@@ -62,6 +61,7 @@ class Emitter(Node):
             # time.sleep(0.01)
         msg.data = value
         self.publisher.publish(msg)
+        print("Sent: ", value[0])
 
 
 class Receiver(Node):
@@ -90,7 +90,7 @@ class Receiver(Node):
             client_socket.sendto(message, self.server_address)
 
         print(
-            "iat: {:4.4f} size: {:5d} serial: {:5d} sent: {:5d} lost: {:5d}".format(now - self.prev_ts, len(value.data) * 4, serial, len(self.iats), self.lost))
+            "iat: {:4.4f} size: {:5d} serial: {:5d} sent: {:5d} lost: {:5d}".format(now - self.prev_ts, len(value.data) * 8, serial, len(self.iats), self.lost))
         if self.prev_serial is not None:
             if serial < self.prev_serial:
                 self.lost = 0
@@ -159,6 +159,7 @@ def main(args=None):
         description='What the program does',
         epilog='Text at the bottom of help')
 
+    parser.add_argument('-F', '--file', default=None)
     parser.add_argument('-p', '--period', default=None)
     parser.add_argument('-n', '--frames-count', default=1000, type=int)
     parser.add_argument('-l', '--preview', action='store_true')
@@ -177,6 +178,12 @@ def main(args=None):
     mine = sys.argv[1:index]
     args = parser.parse_args(mine)
 
+    if args.file is not None:
+        with open(args.file, "r") as f:
+            config = yaml.load(f, Loader=yaml.FullLoader)
+            for k in config:
+                setattr(args, k, config[k])
+
     if args.plot is not None:
         plot_files(args.plot, args.sigma)
         return
@@ -184,7 +191,7 @@ def main(args=None):
     if args.write:
         rmw = os.environ.get('RMW_IMPLEMENTATION', "UNKNOWN").replace("rmw_fastrtps_cpp", "fast").replace("rmw_connext_cpp", "connext").replace(
             "rmw_cyclonedds_cpp", "cyclone")
-        filename = args.write + "_" + rmw + "_" + str(args.idx) + ".csv"
+        filename = args.write
         if os.path.exists(filename) and not args.force:
             print("File already exists, continue? (Y/n)")
             inp = input()

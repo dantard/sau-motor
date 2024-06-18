@@ -107,7 +107,7 @@ for k in list(storage.keys()):
         t.append(storage[k].get(0, 0))
 
 if args.write is not None:
-    with open("DW-" + args.write + ".csv", "w") as f:
+    with open(args.write, "w") as f:
         for t, data in zip(t, data):
             f.write(f"{t}, {data}\n")
 

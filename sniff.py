@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import argparse
 import socket
 import sys
 import threading
@@ -13,7 +14,29 @@ from scapy.layers.l2 import Ether
 from scapy.packet import Raw
 
 total_bytes_on_wire = {}
-local_ip = get_if_addr(sys.argv[1])
+
+parser = argparse.ArgumentParser(
+    prog='Sniffer',
+    description='It Sniffs!')
+
+parser.add_argument('-w', '--write', default=None)
+parser.add_argument('-B', '--bandwidth', action='store_true')
+parser.add_argument('-i', '--interface', required=True)
+parser.add_argument('-P', '--print', action='store_true')
+args = parser.parse_args()
+
+if args.interface not in get_if_list():
+    print("Interface not found")
+    sys.exit(1)
+
+local_ip = get_if_addr(args.interface)
+
+if args.write is None and not args.bandwidth and not args.print:
+    print("You must set either write, bandwidth or print")
+    sys.exit(1)
+
+if args.write is not None:
+    f = open(args.write, "w")
 
 
 def bandwidth(delay):
@@ -23,7 +46,7 @@ def bandwidth(delay):
         for k in total_bytes_on_wire:
             text += f"{k}: {total_bytes_on_wire[k] * 8 / delay / 1024:5.2f}, "
             total_bytes_on_wire[k] = 0
-        # print(text, end="\r")
+        print(text, end="\r")
         time.sleep(delay)
 
 
@@ -50,33 +73,25 @@ def packet_handler(packet):
 
                 payload_str = raw_payload.decode('utf-8', errors='ignore')
                 # print(payload_str)
-                if "ABCD" in payload_str:
-                    base = payload_str.index("ABCD")
-                    index = payload_str[base + 4:base + 5]
-                    serial = payload_str[base + 5: base + 8]
-                    serial = serial.encode('utf-8', errors='ignore')
-                    serial = int.from_bytes(raw_payload[base + 5:base + 7], byteorder='little')
-                    print(index, serial, ip_layer.frag)
+                if "PY" in payload_str:
+                    base = payload_str.index("PY")
+                    index = int(payload_str[base + 2:base + 3])
+                    serial = int(payload_str[base + 5: base + 8])
 
-                if "aaaa" in payload_str:
                     if ip_layer.frag == 0:
-                        frag_counters[0] = 0
-                        serial = int.from_bytes(raw_payload[68:73], byteorder='little')
-                        serials[0] = serial
-
-
+                        frag_counters[index] = 0
+                        serials[index] = serial
                     else:
-                        frag_counters[0] += 1
-                    # print("LONG", serials[0], frag_counters[0])
+                        frag_counters[index] += 1
 
-                elif "bbb" in payload_str:
-                    if ip_layer.frag == 0:
-                        frag_counters[1] = 0
-                        serial = int.from_bytes(raw_payload[68:73], byteorder='big')
-                        serials[1] = serial
-                    else:
-                        frag_counters[1] += 1
-                    # print("SHOOOOOOORT", serials[1], frag_counters[1])
+                    text = "{:20f}, {:1d}, {:5d}, {:3d}, {:5d}".format(time.time(), index, serial, frag_counters[index], fragment_offset_field)
+
+                    if args.write is not None:
+                        f.write(text + "\n")
+
+                    if args.print:
+                        print(text)
+
 
             except UnicodeDecodeError:
                 print("Could not decode payload")
@@ -97,12 +112,16 @@ def packet_handler(packet):
 
 
 # Specify the interface
-threading.Thread(target=bandwidth, args=(1,)).start()
+if args.bandwidth:
+    threading.Thread(target=bandwidth, args=(1,)).start()
 
 try:
     # Capture packets on the specified interface
-    sniff(iface=sys.argv[1], prn=packet_handler, store=False)
+    sniff(iface=args.interface, prn=packet_handler, store=False)
 except Scapy_Exception as e:
     print(f"Error capturing packets: {e}")
 except PermissionError:
     print("Permission denied: run the script as root or administrator.")
+
+if args.write is not None:
+    f.close()
