@@ -57,7 +57,15 @@ for file in args.files:
     df = pandas.read_csv(file, header=None)
     min_ts = df.iloc[0, 0] if df.iloc[0, 0] < min_ts else min_ts
 
-for file in args.files:
+file_colors = ['r', 'g', 'b', 'c', 'm', 'y', 'k']
+
+label_id = 0
+legends = args.legend.split(",") if args.legend is not None else []
+legends = [a if a != "" else None for a in legends]
+legends.extend([None] * 20)
+print(legends)
+
+for file_id, file in enumerate(args.files):
     if args.yaml:
         with open(file + ".yaml", "r") as f:
             config = yaml.load(f, Loader=yaml.FullLoader)
@@ -74,11 +82,14 @@ for file in args.files:
 
     if args.type == "plot":
         data = list(df.iloc[:, 1])
-        plt.scatter(t, data, 4, c='r', zorder=2)
-        plt.plot(t, data, zorder=1)
+        plt.scatter(t, data, 6, c=file_colors[file_id], zorder=2, label=legends[label_id])
+        label_id = label_id + 1
+
+        plt.plot(t, data, zorder=1, label=legends[label_id], linewidth=1)
         # plt.xticks(arange(0, max(t), 0.5))
         plt.xlabel("Time (s)")
         plt.ylabel("Delay (s)")
+        label_id = label_id + 1
 
     elif args.type == "hist":
         data = list(df.iloc[:, 1])
@@ -88,11 +99,12 @@ for file in args.files:
         minimum = max(minimum, mean - args.sigma * sigma)
         increment = ((mean + args.sigma * sigma) - minimum) / 250
         bins = np.arange(minimum, mean + args.sigma * sigma, increment)
-        plt.hist(data, bins=bins, edgecolor='black', alpha=0.7)
+        plt.hist(data, bins=bins, edgecolor='black', alpha=0.7, label=legends[label_id])
+        label_id = label_id + 1
 
     elif args.type == "packets":
         colors = [['r', 'm'], ['c', 'r'], ['b', 'g']]
-        alphas = [[0.5, 1], [1, 0.25], [1, 1]]
+        alphas = [[1, 1], [1, 1], [1, 1]]
         zorder = [1, 2]
         sizes = [8, 8]
 
@@ -105,20 +117,28 @@ for file in args.files:
                 serial = list(filtered.iloc[:, 2])
                 fragment = list(filtered.iloc[:, 3])
                 cols = [colors[i][s % 2] for s in serial]
-                plt.scatter(t1, fragment, sizes[j], c=colors[i][j], alpha=alphas[i][j])
+                plt.scatter(t1, fragment, sizes[j], c=colors[i][j], alpha=alphas[i][j], label=legends[label_id])
+                label_id = label_id + 1
 
         fragment = list(df.iloc[:, 3])
         if args.line:
-            plt.plot(t, fragment, zorder=0, linewidth=1.0, color='#999999')
+            plt.plot(t, fragment, zorder=0, linewidth=1.0, color='#999999', label=legends[label_id])
+            label_id = label_id + 1
 
     plt.xlabel(args.xlabel)
     plt.ylabel(args.ylabel)
 
     if args.legend is not None:
         where, x = get_legend(args.box)
-        plt.legend([x.strip(" ") for x in args.legend.split(",")], loc=where, bbox_to_anchor=(x, 1))
+        plt.legend(loc=where, bbox_to_anchor=(x, 1))
     if args.xticks is not None:
-        plt.xticks([float(x) for x in args.xticks.split(",")])
+        xt = args.xticks.split(":")
+        print(xt)
+        if len(xt) == 1:
+            plt.xticks([float(x) for x in xt[0].split(",")])
+        else:
+            plt.xticks([float(x) for x in xt[0].split(",")], [x for x in xt[1].split(",")])
+        # plt.xticks([float(x) for x in args.xticks.split(",")], ["a", "b"])
     if args.yticks is not None:
         plt.yticks([float(x) for x in args.yticks.split(",")])
 
