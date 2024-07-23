@@ -29,17 +29,21 @@ class Emitter(Node):
 
     # sudo ip route add 192.168.1.3 via 192.168.1.2
     # sudo ip route del 192.168.1.3 via 192.168.1.2
-    def __init__(self, kind, idx=1, period=0.1, qos_profile=1, data_size=0, server_address=None):
+    def __init__(self, kind, idx=1, period=0.1, qos_profile=1, data_size=0, server_address=None, topic="out", input_file=None):
         super().__init__('Emitter' + str(idx))
+        self.input_data = []
 
+        if input_file is not None:
+            self.input_data = yaml.load(open(input_file, "r"), Loader=yaml.FullLoader)
         self.kind = kind
         self.idx = idx
-        self.publisher = self.create_publisher(self.kind, 'out' + str(idx), qos_profile)
+        self.publisher = self.create_publisher(self.kind, topic + str(idx), qos_profile)
         self.count = 0
         self.server_address = server_address
         self.data_size = data_size
         self.create_timer(period, self.timer_callback)
         self.prev_sent_ts = 0
+        self.cnt = 0
 
     def timer_callback(self):
         text = "PY{:1d}{:05d}".format(self.idx, self.count)
@@ -47,9 +51,24 @@ class Emitter(Node):
         for i, c in enumerate(text):
             num = ord(c) << i * 8 | num
 
-        data = [num for _ in range(self.data_size)]
-        self.send([self.count] + data)
-        self.count += 1
+        if len(self.input_data) > 0:
+            self.cnt += 1
+            if self.cnt == len(self.input_data):
+                self.cnt = 0
+                data = [-1, -1]
+                for i in range(25):
+                    self.send([self.count] + data + [i])
+                    self.count += 1
+            else:
+                info = self.input_data[self.cnt]
+                data = [int(a * 1000000) for a in info] + [self.cnt]  # + [num for _ in range(self.data_size)]
+                self.send([self.count] + data)
+                self.count += 1
+
+        else:
+            data = [num for _ in range(self.data_size)]
+            self.send([self.count] + data)
+            self.count += 1
 
     def send(self, value):
         #        diff = time.time_ns() // 1000 - self.prev_sent_ts
@@ -68,10 +87,10 @@ class Receiver(Node):
     # sudo ip route add 192.168.1.1 via 192.168.1.2
     # sudo ip route del 192.168.1.1 via 192.168.1.2
     # sudo sysctl -w net.ipv4.ip_forward=1
-    def __init__(self, kind, idx=1, qos_profile=1, server_address=None):
+    def __init__(self, kind, idx=1, qos_profile=1, server_address=None, topic="out"):
         super().__init__('Receiver' + str(idx))
         self.kind = kind
-        self.subscription = self.create_subscription(self.kind, 'out' + str(idx), self.receive, qos_profile)
+        self.subscription = self.create_subscription(self.kind, topic + str(idx), self.receive, qos_profile)
         self.server_address = server_address
 
         self.prev_ts = time.time()
@@ -95,8 +114,8 @@ class Receiver(Node):
             if serial < self.prev_serial:
                 self.lost = 0
             else:
-                self.iats.append((now, now - self.prev_ts))
                 self.lost += serial - self.prev_serial - 1
+                self.iats.append((now, now - self.prev_ts, self.lost))
 
         self.prev_ts = now
         self.prev_serial = serial
@@ -172,7 +191,9 @@ def main(args=None):
     parser.add_argument('-i', '--idx', default=1, type=int)
     parser.add_argument('-f', '--force', action='store_true')
     parser.add_argument('-o', '--sigma', default=5, type=int)
-    parser.add_argument('-s', '--port', type=int, default=-1)
+    parser.add_argument('-a', '--address', type=str, default=None)
+    parser.add_argument('-T', '--topic', type=str, default="out")
+    parser.add_argument('-k', '--input', type=str, default=None)
 
     index = sys.argv.index("--ros-args") if "--ros-args" in sys.argv else len(sys.argv)
     mine = sys.argv[1:index]
@@ -211,24 +232,26 @@ def main(args=None):
     elif args.policy is not None:
         print("Policy: ", args.policy)
         profile = QoSProfile(
-            reliability=QoSReliabilityPolicy.BEST_EFFORT,
+            reliability=QoSReliabilityPolicy.RELIABLE,
             history=QoSHistoryPolicy.KEEP_LAST,
             durability=QoSDurabilityPolicy.VOLATILE,
             deadline=Duration(nanoseconds=args.policy * 1e9),
-            # lifespan=Duration(nanoseconds=args.policy*1e9),
-            depth=1
+            lifespan=Duration(nanoseconds=args.policy * 1e9),
+            depth=10
         )
     else:
         profile = args.queue
 
-    if args.port != -1:
-        server_address = ('192.168.130.50', args.port)
+    if args.address is not None:
+        address, port = args.address.split(":")
+        server_address = (address, int(port))
     else:
         server_address = None
     if args.period is not None:
-        node = Emitter(Int64MultiArray, args.idx, args.period, qos_profile=profile, data_size=args.size, server_address=server_address)
+        node = Emitter(Int64MultiArray, args.idx, args.period, qos_profile=profile, data_size=args.size, server_address=server_address, topic=args.topic,
+                       input_file=args.input)
     else:
-        node = Receiver(Int64MultiArray, args.idx, qos_profile=profile, server_address=server_address)
+        node = Receiver(Int64MultiArray, args.idx, qos_profile=profile, server_address=server_address, topic=args.topic)
 
     while rclpy.ok():
         try:
@@ -245,8 +268,8 @@ def main(args=None):
             if args.write:
                 with open(filename, mode='w', newline='') as file:
                     writer = csv.writer(file)
-                    for ts, iat in data:
-                        writer.writerow([ts, iat])
+                    for ts, iat, lost in data:
+                        writer.writerow([ts, iat, lost])
                 print("Written to file: ", filename)
 
             if args.preview:

@@ -17,17 +17,21 @@ mpl.rcParams["font.family"] = "monospace"
 
 keep_going = True
 
+server_address = None
+
 
 def ctrl_c(s, f):
     global keep_going
     keep_going = False
+    sck = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sck.sendto(bytes(), server_address)
 
 
 parser = argparse.ArgumentParser(
     prog='Delay Watcher',
     description='Whatches Delays!')
 
-parser.add_argument('-p', '--port', default=12345, type=int)
+parser.add_argument('-a', '--address', type=str, required=True)
 parser.add_argument('-w', '--write', default=None, type=str)
 parser.add_argument('-x', '--plot', default=None, nargs='+')
 parser.add_argument('-l', '--preview', action='store_true')
@@ -75,7 +79,8 @@ signal.signal(signal.SIGINT, ctrl_c)
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
 # Bind the socket to the address and port
-server_address = ('192.168.130.50', args.port)
+address, port = args.address.split(":")
+server_address = (address, int(port))
 print('Starting up on %s port %s' % server_address)
 server_socket.bind(server_address)
 
@@ -86,6 +91,9 @@ while keep_going:
     # Wait for a message
     # print('Waiting for a message...')
     data, client_address = server_socket.recvfrom(233)  # Receive 8 bytes (two integers)
+    if len(data) == 0:
+        continue
+
     int_values = struct.unpack('!iiq', data)
     # print('Received %s bytes from %s: %s' % (len(data), client_address, int_values))
     kind = int_values[0]
@@ -107,6 +115,7 @@ for k in list(storage.keys()):
         t.append(storage[k].get(0, 0))
 
 if args.write is not None:
+    print("Writing to", args.write)
     with open(args.write, "w") as f:
         for t, data in zip(t, data):
             f.write(f"{t}, {data}\n")

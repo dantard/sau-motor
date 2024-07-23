@@ -75,8 +75,12 @@ def packet_handler(packet):
                 # print(payload_str)
                 if "PY" in payload_str:
                     base = payload_str.index("PY")
-                    index = int(payload_str[base + 2:base + 3])
-                    serial = int(payload_str[base + 5: base + 8])
+                    try:
+                        index = int(payload_str[base + 2:base + 3])
+                        serial = int(payload_str[base + 5: base + 8])
+                    except:
+                        print("Could not parse serial number")
+                        return
 
                     if ip_layer.frag == 0:
                         frag_counters[index] = 0
